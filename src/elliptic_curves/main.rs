@@ -1,6 +1,7 @@
 use point::Point;
 
 mod point;
+mod coordinate;
 
 fn main() -> Result<(), String> {
     let p1 = Point::new(2, 5, 5.0, 7.0)?;
