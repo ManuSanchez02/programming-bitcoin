@@ -2,7 +2,7 @@ use std::{fmt::Display, ops::Add};
 
 use crate::coordinate::Coordinate;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub struct Point {
     x: Coordinate,
     y: Coordinate,
@@ -115,4 +115,57 @@ mod tests {
         let point_res = Point::new(Coordinate::Infinity, Coordinate::Infinity, 5.0, 7.0);
         assert!(point_res.is_ok());
     }
+
+    #[test]
+    fn cannot_add_points_in_different_curves() {
+        let p1 = Point::new(-1, 1, 5.0, 7.0).unwrap();
+        let p2 = Point::new(0, 1, 1.0, 1.0).unwrap();
+        let res = p1 + p2;
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn adding_points_in_vertical_line_returns_infinity_point() {
+        let p1 = Point::new(-1, 1, 5.0, 7.0).unwrap();
+        let p2 = Point::new(-1, -1, 5.0, 7.0).unwrap();
+        let res = p1 + p2;
+        let expected = Point::new(Coordinate::Infinity, Coordinate::Infinity, 5.0, 7.0).unwrap();
+        assert!(res.is_ok_and(|x| x == expected));
+    }
+
+    #[test]
+    fn adding_point_with_identity_point_returns_same_point() {
+        let p1 = Point::new(-1, -1, 5.0, 7.0).unwrap();
+        let p2 = Point::new(Coordinate::Infinity, Coordinate::Infinity, 5.0, 7.0).unwrap();
+        let res = p1 + p2;
+        assert!(res.is_ok_and(|x| x == p1));
+    }
+
+    #[test]
+    fn adding_point_with_other_point_returns_correct_result() {
+        let p1 = Point::new(2, 5, 5.0, 7.0).unwrap();
+        let p2 = Point::new(-1, -1, 5.0, 7.0).unwrap();
+        let expected = Point::new(3, -7, 5.0, 7.0).unwrap();
+        let res = p1 + p2;
+        assert!(res.is_ok_and(|x| x == expected));
+    }
+
+    #[test]
+    fn adding_point_with_same_point_on_y_different_to_0_returns_correct_result() {
+        let p1 = Point::new(-1, -1, 5.0, 7.0).unwrap();
+        let p2 = Point::new(-1, -1, 5.0, 7.0).unwrap();
+        let expected = Point::new(18, 77, 5.0, 7.0).unwrap();
+        let res = p1 + p2;
+        assert!(res.is_ok_and(|x| x == expected));
+    }
+
+    #[test]
+    fn adding_point_with_same_point_on_y_equal_to_0_returns_infinity_point() {
+        let p1 = Point::new(-1, 0, 5.0, 6.0).unwrap();
+        let p2 = Point::new(-1, 0, 5.0, 6.0).unwrap();
+        let expected = Point::new(Coordinate::Infinity, Coordinate::Infinity, 5.0, 6.0).unwrap();
+        let res = p1 + p2;
+        assert!(res.is_ok_and(|x| x == expected));
+    }
 }
+
