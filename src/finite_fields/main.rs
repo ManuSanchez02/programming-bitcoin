@@ -1,7 +1,6 @@
 use field_element::FieldElement;
 
 mod field_element;
-mod point;
 
 fn main() -> Result<(), String> {
     let prime = 31;

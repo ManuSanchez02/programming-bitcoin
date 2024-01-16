@@ -1,28 +1,33 @@
 use std::{
-    fmt::{format, write, Display},
-    iter::Map,
-    ops::{Add, Mul, Sub, Div},
+    fmt::Display,
+    ops::{Add, Div, Mul, Sub},
 };
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Coordinate {
-    Value(i32),
+    Value(f32),
     Infinity,
 }
 
-impl From<i32> for Coordinate {
-    fn from(value: i32) -> Self {
+impl From<f32> for Coordinate {
+    fn from(value: f32) -> Self {
         Coordinate::Value(value)
     }
 }
 
+impl From<i32> for Coordinate {
+    fn from(value: i32) -> Self {
+        Coordinate::Value(value as f32)
+    }
+}
+
 impl Coordinate {
-    pub fn pow(&self, exp: u32) -> Self {
+    pub fn pow(&self, exp: f32) -> Self {
         if self.is_infinity() {
             return Coordinate::Infinity;
         }
 
-        return self.map(|x: i32| x.pow(exp));
+        return self.map(|x: f32| x.powf(exp));
     }
 
     pub fn is_infinity(&self) -> bool {
@@ -31,7 +36,7 @@ impl Coordinate {
 
     pub fn map<F>(self, f: F) -> Coordinate
     where
-        F: FnOnce(i32) -> i32,
+        F: FnOnce(f32) -> f32,
     {
         match self {
             Coordinate::Value(x) => Coordinate::Value(f(x)),
@@ -39,6 +44,8 @@ impl Coordinate {
         }
     }
 }
+
+impl Eq for Coordinate {}
 
 impl Add for Coordinate {
     type Output = Self;
@@ -88,12 +95,24 @@ impl Div for Coordinate {
     }
 }
 
-impl Mul<i32> for Coordinate {
+impl Mul<f32> for Coordinate {
     type Output = Self;
 
-    fn mul(self, other: i32) -> Self::Output {
+    fn mul(self, other: f32) -> Self::Output {
         if let Coordinate::Value(x) = self {
             return Coordinate::Value(x * other);
+        } else {
+            return Coordinate::Infinity;
+        }
+    }
+}
+
+impl Add<f32> for Coordinate {
+    type Output = Self;
+
+    fn add(self, other: f32) -> Self::Output {
+        if let Coordinate::Value(x) = self {
+            return Coordinate::Value(x + other);
         } else {
             return Coordinate::Infinity;
         }
@@ -110,31 +129,66 @@ impl Display for Coordinate {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq)]
 pub struct Point {
     x: Coordinate,
     y: Coordinate,
-    a: Coordinate,
-    b: Coordinate,
+    a: f32,
+    b: f32,
 }
 
+impl Eq for Point {}
+
 impl Point {
-    pub fn new<T: Into<Coordinate>, U: Into<Coordinate>>(
-        x: T,
-        y: T,
-        a: U,
-        b: U,
-    ) -> Result<Self, String> {
+    pub fn new<T: Into<Coordinate>, U: Into<f32>>(x: T, y: T, a: U, b: U) -> Result<Self, String> {
         let x: Coordinate = x.into();
         let y: Coordinate = y.into();
-        let a: Coordinate = a.into();
-        let b: Coordinate = b.into();
+        let a: f32 = a.into();
+        let b: f32 = b.into();
 
-        if !(x.is_infinity() && y.is_infinity()) && y.pow(2) != x.pow(3) + a * x + b {
+        if !(x.is_infinity() && y.is_infinity()) && y.pow(2.0) != x.pow(3.0) + x * a + b {
             return Err(format!("({},{}) is not on the curve", x, y));
         }
 
         Ok(Self { x, y, a, b })
+    }
+
+    fn add_point(self, other: Point) -> Point {
+        if self.x == other.x && self.y != other.y {
+            return Point {
+                x: Coordinate::Infinity,
+                y: Coordinate::Infinity,
+                a: self.a,
+                b: self.b,
+            };
+        }
+
+        let slope = if self == other {
+            if self.y == Coordinate::Value(0.0) {
+                return Point {
+                    x: Coordinate::Infinity,
+                    y: Coordinate::Infinity,
+                    a: self.a,
+                    b: self.b,
+                };
+            }
+
+            (self.x.pow(2.0) * 3.0 + self.a) / (self.y * 2.0)
+        } else {
+            (other.y - self.y) / (other.x - self.x)
+        };
+
+        let x_res = slope.pow(2.0) - self.x - other.x;
+        let y_res = slope * (self.x - x_res) - self.y;
+
+        let res = Point {
+            a: self.a,
+            b: self.b,
+            x: x_res,
+            y: y_res,
+        };
+
+        return res;
     }
 }
 
@@ -163,27 +217,7 @@ impl Add for Point {
             return Ok(self);
         }
 
-        if self.x == other.x && self.y != other.y {
-            return Ok(Point {
-                x: Coordinate::Infinity,
-                y: Coordinate::Infinity,
-                a: self.a,
-                b: self.b,
-            });
-        }
-
-        let slope = (other.y - self.y) / (other.x - self.x);
-        let x_res = slope.pow(2) - self.x - other.x;
-        let y_res = slope * (self.x - x_res) - self.y;
-
-        let res = Point {
-            a: self.a,
-            b: self.b,
-            x: x_res,
-            y: y_res
-        };
-
-        return Ok(res);
+        return Ok(self.add_point(other));
     }
 }
 
@@ -193,19 +227,19 @@ mod tests {
 
     #[test]
     fn cannot_create_point_that_is_not_in_curve() {
-        let point_res = Point::new(-1, -2, 5, 7);
+        let point_res = Point::new(-1, -2, 5.0, 7.0);
         assert!(point_res.is_err());
     }
 
     #[test]
     fn can_create_point_that_is_in_curve() {
-        let point_res = Point::new(-1, -1, 5, 7);
+        let point_res = Point::new(-1, -1, 5.0, 7.0);
         assert!(point_res.is_ok());
     }
 
     #[test]
     fn can_create_point_that_is_in_infinity() {
-        let point_res = Point::new(Coordinate::Infinity, Coordinate::Infinity, 5, 7);
+        let point_res = Point::new(Coordinate::Infinity, Coordinate::Infinity, 5.0, 7.0);
         assert!(point_res.is_ok());
     }
 }
