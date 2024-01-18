@@ -3,10 +3,12 @@ use std::{
     ops::{Add, Div, Mul, Neg, Sub},
 };
 
+use crate::{pow::Pow, is_zero::IsZero};
+
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub struct FieldElement {
-    number: u32,
-    prime: u32,
+    pub number: u32,
+    pub prime: u32,
 }
 
 impl FieldElement {
@@ -41,16 +43,8 @@ impl FieldElement {
         return self.positive_pow(equivalent_power);
     }
 
-    pub fn pow(&self, power: i32) -> Self {
-        if power.is_positive() {
-            self.positive_pow(power)
-        } else {
-            self.negative_pow(power)
-        }
-    }
-
     pub fn inverse(&self) -> Self {
-       self.pow(self.prime as i32 - 2)
+        self.pow(self.prime as i32 - 2)
     }
 }
 
@@ -60,43 +54,81 @@ impl Display for FieldElement {
     }
 }
 
+impl Pow for FieldElement {
+    fn pow(&self, exp: i32) -> Self {
+        if exp.is_positive() {
+            self.positive_pow(exp)
+        } else {
+            self.negative_pow(exp)
+        }
+    }
+}
+
 impl Add for FieldElement {
-    type Output = Result<Self, String>;
+    type Output = Self;
 
     fn add(self, other: Self) -> Self::Output {
         if self.prime != other.prime {
-            return Err(format!(
+            panic!(
                 "Elements {} and {} have different prime fields",
                 self, other
-            ));
+            );
         }
 
         let number = (self.number + other.number) % self.prime;
 
-        Ok(Self {
+        Self {
             number,
             prime: self.prime,
-        })
+        }
+    }
+}
+
+impl Add<i32> for FieldElement {
+    type Output = Self;
+
+    fn add(self, other: i32) -> Self::Output {
+        let number = (self.number as i32 + other).rem_euclid(self.prime as i32);
+        let number = number as u32;
+
+        Self {
+            number,
+            prime: self.prime,
+        }
     }
 }
 
 impl Mul for FieldElement {
-    type Output = Result<Self, String>;
+    type Output = Self;
 
     fn mul(self, other: Self) -> Self::Output {
         if self.prime != other.prime {
-            return Err(format!(
+            panic!(
                 "Elements {} and {} have different prime fields",
                 self, other
-            ));
+            );
         }
 
         let number = (self.number * other.number) % self.prime;
 
-        Ok(Self {
+        Self {
             number,
             prime: self.prime,
-        })
+        }
+    }
+}
+
+impl Mul<i32> for FieldElement {
+    type Output = Self;
+
+    fn mul(self, other: i32) -> Self::Output {
+        let number = (self.number as i32 * other).rem_euclid(self.prime as i32);
+        let number = number as u32;
+
+        Self {
+            number,
+            prime: self.prime,
+        }
     }
 }
 
@@ -115,19 +147,24 @@ impl Neg for FieldElement {
 }
 
 impl Sub for FieldElement {
-    type Output = Result<Self, String>;
+    type Output = Self;
 
     fn sub(self, other: Self) -> Self::Output {
-        let other_opposite = -other;
-        self + other_opposite
+        self + (-other)
     }
 }
 
 impl Div for FieldElement {
-    type Output = Result<Self, String>;
+    type Output = Self;
 
     fn div(self, other: Self) -> Self::Output {
         self * other.inverse()
+    }
+}
+
+impl IsZero for FieldElement {
+    fn is_zero(&self) -> bool {
+        self.number == 0
     }
 }
 
@@ -167,19 +204,19 @@ mod tests {
     }
 
     #[test]
+    #[should_panic]
     fn cannot_add_elements_with_different_prime() {
         let element1 = FieldElement::new(1, 2).unwrap();
         let element2 = FieldElement::new(1, 3).unwrap();
-        let result = element1 + element2;
-        assert!(result.is_err());
+        let _ = element1 + element2;
     }
 
     #[test]
     fn can_add_elements_with_same_prime() {
         let element1 = FieldElement::new(1, 3).unwrap();
         let element2 = FieldElement::new(1, 3).unwrap();
-        let result = (element1 + element2).unwrap();
         let expected = FieldElement::new(2, 3).unwrap();
+        let result = element1 + element2;
         assert_eq!(result, expected);
     }
 
@@ -187,25 +224,25 @@ mod tests {
     fn can_add_elements_with_same_prime_that_overflow() {
         let element1 = FieldElement::new(2, 3).unwrap();
         let element2 = FieldElement::new(2, 3).unwrap();
-        let result = (element1 + element2).unwrap();
         let expected = FieldElement::new(1, 3).unwrap();
+        let result = element1 + element2;
         assert_eq!(result, expected);
     }
 
     #[test]
+    #[should_panic]
     fn cannot_substract_elements_with_different_prime() {
         let element1 = FieldElement::new(1, 2).unwrap();
         let element2 = FieldElement::new(1, 3).unwrap();
-        let result = element1 - element2;
-        assert!(result.is_err());
+        let _ = element1 - element2;
     }
 
     #[test]
     fn can_substract_elements_with_same_prime() {
         let element1 = FieldElement::new(1, 3).unwrap();
         let element2 = FieldElement::new(1, 3).unwrap();
-        let result = (element1 - element2).unwrap();
         let expected = FieldElement::new(0, 3).unwrap();
+        let result = element1 - element2;
         assert_eq!(result, expected);
     }
 
@@ -213,8 +250,8 @@ mod tests {
     fn can_substract_elements_with_same_prime_that_underflow() {
         let element1 = FieldElement::new(1, 3).unwrap();
         let element2 = FieldElement::new(2, 3).unwrap();
-        let result = (element1 - element2).unwrap();
         let expected = FieldElement::new(2, 3).unwrap();
+        let result = element1 - element2;
         assert_eq!(result, expected);
     }
 
@@ -222,25 +259,25 @@ mod tests {
     fn adding_element_and_additive_inverse_is_0() {
         let element1 = FieldElement::new(1, 3).unwrap();
         let element2 = -element1;
-        let result = (element1 + element2).unwrap();
         let expected = FieldElement::new(0, 3).unwrap();
+        let result = element1 + element2;
         assert_eq!(result, expected);
     }
 
     #[test]
+    #[should_panic]
     fn cannot_multiply_elements_with_different_prime() {
         let element1 = FieldElement::new(1, 2).unwrap();
         let element2 = FieldElement::new(1, 3).unwrap();
-        let result = element1 * element2;
-        assert!(result.is_err());
+        let _ = element1 * element2;
     }
 
     #[test]
     fn can_multiply_elements_with_same_prime() {
         let element1 = FieldElement::new(1, 3).unwrap();
         let element2 = FieldElement::new(2, 3).unwrap();
-        let result = (element1 * element2).unwrap();
         let expected = FieldElement::new(2, 3).unwrap();
+        let result = element1 * element2;
         assert_eq!(result, expected);
     }
 
@@ -248,8 +285,8 @@ mod tests {
     fn can_multiply_elements_with_same_prime_that_overflow() {
         let element1 = FieldElement::new(2, 3).unwrap();
         let element2 = FieldElement::new(2, 3).unwrap();
-        let result = (element1 * element2).unwrap();
         let expected = FieldElement::new(1, 3).unwrap();
+        let result = element1 * element2;
         assert_eq!(result, expected);
     }
 
@@ -257,8 +294,8 @@ mod tests {
     fn multiplying_by_0_results_in_0() {
         let element1 = FieldElement::new(2, 3).unwrap();
         let element2 = FieldElement::new(0, 3).unwrap();
-        let result = (element1 * element2).unwrap();
         let expected = FieldElement::new(0, 3).unwrap();
+        let result = element1 * element2;
         assert_eq!(result, expected);
     }
 
@@ -284,19 +321,19 @@ mod tests {
     }
 
     #[test]
+    #[should_panic]
     fn cannot_divide_elements_with_different_prime() {
         let element1 = FieldElement::new(1, 2).unwrap();
         let element2 = FieldElement::new(1, 3).unwrap();
-        let result = element1 / element2;
-        assert!(result.is_err());
+        let _ = element1 / element2;
     }
 
     #[test]
     fn can_divide_elements_with_denominator_bigger_than_numerator() {
         let element1 = FieldElement::new(2, 19).unwrap();
         let element2 = FieldElement::new(7, 19).unwrap();
-        let result = (element1 / element2).unwrap();
         let expected = FieldElement::new(3, 19).unwrap();
+        let result = element1 / element2;
         assert_eq!(result, expected);
     }
 
@@ -304,8 +341,8 @@ mod tests {
     fn can_divide_elements_with_numerator_bigger_than_denominator() {
         let element1 = FieldElement::new(7, 19).unwrap();
         let element2 = FieldElement::new(5, 19).unwrap();
-        let result = (element1 / element2).unwrap();
         let expected = FieldElement::new(9, 19).unwrap();
+        let result = element1 / element2;
         assert_eq!(result, expected);
     }
 
